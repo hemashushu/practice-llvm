@@ -1,3 +1,4 @@
+/.vscode
 /target
 my_module.ll
 my_module.s
