@@ -1,0 +1,10 @@
+#!/bin/bash
+cargo run
+
+# see also:
+# https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl08.html
+
+llc my_module.ll
+as my_module.s -o my_module.o
+gcc main.c my_module.o -o main
+./main
