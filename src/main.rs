@@ -9,7 +9,7 @@ use std::io::Read;
 use std::ptr;
 use std::{collections::HashMap, ffi::CString};
 
-use llvm_sys::{self, prelude::*};
+use llvm_sys::{core::*, prelude::*};
 
 mod parser;
 
@@ -53,29 +53,28 @@ fn parse() -> Vec<Expression> {
 }
 
 unsafe fn codegen(program: Vec<Expression>) {
-    let context = llvm_sys::core::LLVMContextCreate();
-    let module = llvm_sys::core::LLVMModuleCreateWithName(c_str!("my_module"));
-    let builder = llvm_sys::core::LLVMCreateBuilderInContext(context);
+    let context = LLVMContextCreate();
+    let module = LLVMModuleCreateWithName(c_str!("my_module"));
+    let builder = LLVMCreateBuilderInContext(context);
 
-    let int_type = llvm_sys::core::LLVMInt64TypeInContext(context);
-    let function_type = llvm_sys::core::LLVMFunctionType(int_type, ptr::null_mut(), 0, 0);
-    let function = llvm_sys::core::LLVMAddFunction(module, c_str!("myfunc"), function_type);
+    let int_type = LLVMInt64TypeInContext(context);
+    let function_type = LLVMFunctionType(int_type, ptr::null_mut(), 0, 0);
+    let function = LLVMAddFunction(module, c_str!("myfunc"), function_type);
 
-    let base_block =
-        llvm_sys::core::LLVMAppendBasicBlockInContext(context, function, c_str!("entry"));
-    llvm_sys::core::LLVMPositionBuilderAtEnd(builder, base_block);
+    let base_block = LLVMAppendBasicBlockInContext(context, function, c_str!("entry"));
+    LLVMPositionBuilderAtEnd(builder, base_block);
 
     let mut names = HashMap::new();
     insert_allocations(context, builder, &mut names, &program);
 
-    let int_type = llvm_sys::core::LLVMInt64TypeInContext(context);
-    let zero = llvm_sys::core::LLVMConstInt(int_type, 0, 0);
+    let int_type = LLVMInt64TypeInContext(context);
+    let zero = LLVMConstInt(int_type, 0, 0);
     let mut return_value = zero;
 
     for expression in program {
         return_value = codegen_expr(context, builder, function, &mut names, expression);
     }
-    llvm_sys::core::LLVMBuildRet(builder, return_value);
+    LLVMBuildRet(builder, return_value);
 
     // print to stdout
     // llvm::core::LLVMDumpModule(module);
@@ -84,11 +83,11 @@ unsafe fn codegen(program: Vec<Expression>) {
     // LLVMWriteBitcodeToFile(module, c_str!("my_module.bc"));
 
     // print to file
-    llvm_sys::core::LLVMPrintModuleToFile(module, c_str!("my_module.ll"), ptr::null_mut());
+    LLVMPrintModuleToFile(module, c_str!("my_module.ll"), ptr::null_mut());
 
-    llvm_sys::core::LLVMDisposeBuilder(builder);
-    llvm_sys::core::LLVMDisposeModule(module);
-    llvm_sys::core::LLVMContextDispose(context);
+    LLVMDisposeBuilder(builder);
+    LLVMDisposeModule(module);
+    LLVMContextDispose(context);
 }
 
 unsafe fn insert_allocations(
@@ -109,9 +108,9 @@ unsafe fn insert_allocations(
     }
 
     for variable_name in variable_names {
-        let int_type = llvm_sys::core::LLVMInt64TypeInContext(context);
+        let int_type = LLVMInt64TypeInContext(context);
         let name = CString::new(variable_name.as_bytes()).unwrap();
-        let pointer = llvm_sys::core::LLVMBuildAlloca(builder, int_type, name.as_ptr());
+        let pointer = LLVMBuildAlloca(builder, int_type, name.as_ptr());
 
         names.insert(variable_name.to_owned(), pointer);
     }
@@ -126,21 +125,21 @@ unsafe fn codegen_expr(
 ) -> LLVMValueRef {
     match expression {
         Expression::Literal(int_literal) => {
-            let int_type = llvm_sys::core::LLVMInt64TypeInContext(context);
-            llvm_sys::core::LLVMConstInt(int_type, int_literal.parse().unwrap(), 0)
+            let int_type = LLVMInt64TypeInContext(context);
+            LLVMConstInt(int_type, int_literal.parse().unwrap(), 0)
         }
         Expression::Identifier(name) => {
             let pointer = names.get(&name).unwrap();
             let name = CString::new(name).unwrap();
-            let int_type = llvm_sys::core::LLVMInt64TypeInContext(context);
-            llvm_sys::core::LLVMBuildLoad2(builder, int_type, *pointer, name.as_ptr())
+            let int_type = LLVMInt64TypeInContext(context);
+            LLVMBuildLoad2(builder, int_type, *pointer, name.as_ptr())
         }
         Expression::If(condition, then_body, else_body) => {
             let condition_value = codegen_expr(context, builder, func, names, *condition);
-            let int_type = llvm_sys::core::LLVMInt64TypeInContext(context);
-            let zero = llvm_sys::core::LLVMConstInt(int_type, 0, 0);
+            let int_type = LLVMInt64TypeInContext(context);
+            let zero = LLVMConstInt(int_type, 0, 0);
 
-            let is_nonzero = llvm_sys::core::LLVMBuildICmp(
+            let is_nonzero = LLVMBuildICmp(
                 builder,
                 llvm_sys::LLVMIntPredicate::LLVMIntNE,
                 condition_value,
@@ -148,78 +147,75 @@ unsafe fn codegen_expr(
                 c_str!("is_nonzero"),
             );
 
-            let then_block =
-                llvm_sys::core::LLVMAppendBasicBlockInContext(context, func, c_str!("then_block"));
+            let then_block = LLVMAppendBasicBlockInContext(context, func, c_str!("then_block"));
 
-            let else_block =
-                llvm_sys::core::LLVMAppendBasicBlockInContext(context, func, c_str!("else_block"));
+            let else_block = LLVMAppendBasicBlockInContext(context, func, c_str!("else_block"));
 
-            let merge_block =
-                llvm_sys::core::LLVMAppendBasicBlockInContext(context, func, c_str!("merge_block"));
+            let merge_block = LLVMAppendBasicBlockInContext(context, func, c_str!("merge_block"));
 
-            llvm_sys::core::LLVMBuildCondBr(builder, is_nonzero, then_block, else_block);
+            LLVMBuildCondBr(builder, is_nonzero, then_block, else_block);
 
             // `then` block
-            llvm_sys::core::LLVMPositionBuilderAtEnd(builder, then_block);
+            LLVMPositionBuilderAtEnd(builder, then_block);
             let mut then_return = zero;
             for expr in then_body {
                 then_return = codegen_expr(context, builder, func, names, expr);
             }
-            llvm_sys::core::LLVMBuildBr(builder, merge_block);
-            let then_block = llvm_sys::core::LLVMGetInsertBlock(builder);
+            LLVMBuildBr(builder, merge_block);
+            let then_block = LLVMGetInsertBlock(builder);
 
             // `else` block
-            llvm_sys::core::LLVMPositionBuilderAtEnd(builder, else_block);
+            LLVMPositionBuilderAtEnd(builder, else_block);
             let mut else_return = zero;
             for expr in else_body {
                 else_return = codegen_expr(context, builder, func, names, expr);
             }
-            llvm_sys::core::LLVMBuildBr(builder, merge_block);
-            let else_block = llvm_sys::core::LLVMGetInsertBlock(builder);
+            LLVMBuildBr(builder, merge_block);
+            let else_block = LLVMGetInsertBlock(builder);
 
             // `iftmp` block
-            llvm_sys::core::LLVMPositionBuilderAtEnd(builder, merge_block);
+            LLVMPositionBuilderAtEnd(builder, merge_block);
             let phi_name = CString::new("iftmp").unwrap();
-            let phi = llvm_sys::core::LLVMBuildPhi(builder, int_type, phi_name.as_ptr());
+            let phi = LLVMBuildPhi(builder, int_type, phi_name.as_ptr());
 
             let mut values = vec![then_return, else_return];
             let mut blocks = vec![then_block, else_block];
 
-            llvm_sys::core::LLVMAddIncoming(phi, values.as_mut_ptr(), blocks.as_mut_ptr(), 2);
+            LLVMAddIncoming(phi, values.as_mut_ptr(), blocks.as_mut_ptr(), 2);
             phi
         }
         Expression::Assign(s, e) => {
             let new_value = codegen_expr(context, builder, func, names, *e);
             let pointer = names.get(&s).unwrap();
-            llvm_sys::core::LLVMBuildStore(builder, new_value, *pointer);
+            LLVMBuildStore(builder, new_value, *pointer);
             new_value
         }
         Expression::Add(lhs, rhs) => {
             let lhs = codegen_expr(context, builder, func, names, *lhs);
             let rhs = codegen_expr(context, builder, func, names, *rhs);
 
-            llvm_sys::core::LLVMBuildAdd(builder, lhs, rhs, c_str!("addtmp"))
+            LLVMBuildAdd(builder, lhs, rhs, c_str!("addtmp"))
         }
 
         Expression::Sub(lhs, rhs) => {
             let lhs = codegen_expr(context, builder, func, names, *lhs);
             let rhs = codegen_expr(context, builder, func, names, *rhs);
 
-            llvm_sys::core::LLVMBuildSub(builder, lhs, rhs, c_str!("subtmp"))
+            LLVMBuildSub(builder, lhs, rhs, c_str!("subtmp"))
         }
 
         Expression::Mul(lhs, rhs) => {
             let lhs = codegen_expr(context, builder, func, names, *lhs);
             let rhs = codegen_expr(context, builder, func, names, *rhs);
 
-            llvm_sys::core::LLVMBuildMul(builder, lhs, rhs, c_str!("multmp"))
+            LLVMBuildMul(builder, lhs, rhs, c_str!("multmp"))
         }
 
         Expression::Div(lhs, rhs) => {
             let lhs = codegen_expr(context, builder, func, names, *lhs);
             let rhs = codegen_expr(context, builder, func, names, *rhs);
 
-            llvm_sys::core::LLVMBuildUDiv(builder, lhs, rhs, c_str!("divtmp"))
+            LLVMBuildUDiv(builder, lhs, rhs, c_str!("divtmp"))
         }
     }
 }
